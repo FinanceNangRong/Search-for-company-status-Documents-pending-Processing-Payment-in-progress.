@@ -279,10 +279,13 @@
             else if (selectedStatusFilter === 'processing') filteredRows = filteredRows.filter(r => r._status === "กำลังดำเนินการจ่าย");
             else if (selectedStatusFilter === 'paid') filteredRows = filteredRows.filter(r => r._status === "ชำระแล้ว");
 
+            // เช็คว่าต้องเปิดคอลัมน์พิเศษหรือไม่ (สำหรับสถานะดำเนินการ / ชำระแล้ว)
+            let showExtraCol = (selectedStatusFilter === 'processing' || selectedStatusFilter === 'paid');
+            let extraColHeader = selectedStatusFilter === 'processing' ? 'วันที่ดำเนินการ' : 'วันที่ชำระเงิน';
+            let colSpanCount = showExtraCol ? 7 : 6;
+
             let colDateHeaderText = 'วันที่ตรวจรับ / ดำเนินการ / ชำระเงิน';
             if (selectedStatusFilter === 'empty' || selectedStatusFilter === 'has_doc') colDateHeaderText = 'วันที่ตรวจรับ';
-            else if (selectedStatusFilter === 'processing') colDateHeaderText = 'วันที่ดำเนินการ';
-            else if (selectedStatusFilter === 'paid') colDateHeaderText = 'วันที่ชำระเงิน';
 
             let sortedRows = [...filteredRows].sort((a, b) => {
                 if (a._compC !== b._compC) return a._compC.localeCompare(b._compC, 'th');
@@ -300,14 +303,34 @@
                 let pType = "เช็ค", pClass = "text-orange-500 font-bold";
                 if (row._valM.includes("GFMIS") || row._valM.includes("E-Bidding")) { pType = "จ่ายตรงผู้ขาย"; pClass = "text-blue-600 font-bold"; }
 
-                let dHtml = "", dDate = "-";
-                if (row._status === "") { dDate = row._dateRecStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-200"><span class="w-1.5 h-1.5 bg-rose-500 rounded-full mr-1.5 print:hidden"></span>มีหนี้ฯ แต่ไม่สามารถวางบิลได้</span>'; }
-                else if (row._status === "มีเอกสาร") { dDate = row._dateRecStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200"><span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 print:hidden"></span>มีเอกสาร สามารถวางบิลได้</span>'; }
-                else if (row._status === "กำลังดำเนินการจ่าย") { dDate = row._dateProcessStrShort; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1.5 print:hidden"></span>กำลังดำเนินการจ่าย</span>'; }
-                else if (row._status === "ชำระแล้ว") { dDate = row._datePayStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 print:hidden"></span>ชำระแล้ว</span>'; }
+                let dHtml = "", displayDate = "-";
+                // ใช้สำหรับโหมดปกติที่ไม่มีการแตกคอลัมน์
+                if (row._status === "") { displayDate = row._dateRecStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-200"><span class="w-1.5 h-1.5 bg-rose-500 rounded-full mr-1.5 print:hidden"></span>มีหนี้ฯ แต่ไม่สามารถวางบิลได้</span>'; }
+                else if (row._status === "มีเอกสาร") { displayDate = row._dateRecStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200"><span class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 print:hidden"></span>มีเอกสาร สามารถวางบิลได้</span>'; }
+                else if (row._status === "กำลังดำเนินการจ่าย") { displayDate = row._dateProcessStrShort; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1.5 print:hidden"></span>กำลังดำเนินการจ่าย</span>'; }
+                else if (row._status === "ชำระแล้ว") { displayDate = row._datePayStr; dHtml = '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5 print:hidden"></span>ชำระแล้ว</span>'; }
 
-                return { compName: row._compC || "-", rawPaymentMethod: row._valM, displayDate: dDate, docNo: row._invD, pType, pClass, amount: formatNumber(row._e), dHtml };
+                // เก็บแยกสำหรับโหมดแตกคอลัมน์ 3
+                let recDate = row._dateRecStr;
+                let actionDate = "-";
+                if (selectedStatusFilter === 'processing') actionDate = row._dateProcessStrShort;
+                else if (selectedStatusFilter === 'paid') actionDate = row._datePayStr;
+
+                return { compName: row._compC || "-", rawPaymentMethod: row._valM, displayDate, recDate, actionDate, docNo: row._invD, pType, pClass, amount: formatNumber(row._e), dHtml };
             });
+
+            // สร้างหัวตาราง (ปรับตามเงื่อนไขว่าแทรกคอลัมน์หรือไม่)
+            let thHtml = `
+                <th class="border border-slate-200 py-3 px-4 w-auto">หมวดประเภทรายการ</th>
+                ${showExtraCol 
+                    ? `<th class="border border-slate-200 py-3 px-4 w-auto">วันที่ตรวจรับ</th><th class="border border-slate-200 py-3 px-4 w-auto text-blue-800">${extraColHeader}</th>` 
+                    : `<th id="colDateHeader" class="border border-slate-200 py-3 px-4 w-auto">${colDateHeaderText}</th>`
+                }
+                <th class="border border-slate-200 py-3 px-4 w-auto">เลขที่ใบส่งของ</th>
+                <th class="border border-slate-200 py-3 px-4 w-auto">ประเภทการจ่าย</th>
+                <th class="border border-slate-200 py-3 px-4 text-right w-auto">จำนวนเงิน</th>
+                <th class="border border-slate-200 py-3 px-4 w-auto">สถานะ</th>
+            `;
 
             let tbodyHtml = '';
             let i = 0;
@@ -315,7 +338,7 @@
                 let currentCompany = renderData[i].compName;
                 tbodyHtml += `
                     <tr class="bg-blue-50/60 print:bg-gray-100">
-                        <td colspan="6" class="border-b border-blue-100 py-3 px-4 text-blue-800 font-bold text-[15px]">
+                        <td colspan="${colSpanCount}" class="border-b border-blue-100 py-3 px-4 text-blue-800 font-bold text-[15px]">
                             <div class="flex items-center">
                                 <svg class="w-5 h-5 mr-2 text-blue-600 print:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                                 ชื่อบริษัท/สาขา: <span class="ml-1 text-slate-800">${currentCompany}</span>
@@ -334,10 +357,15 @@
                         if (compItems[j].rawPaymentMethod === currentItem.rawPaymentMethod) groupCount++; else break;
                     }
 
+                    // สร้างคอลัมน์วันที่แบบ 1 หรือ 2 คอลัมน์ตามสถานะตัวกรอง
+                    let dateColsHtml = showExtraCol 
+                        ? `<td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${currentItem.recDate}</td><td class="border border-slate-200 py-2.5 px-4 text-blue-700 font-medium align-top bg-blue-50/20">${currentItem.actionDate}</td>`
+                        : `<td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${currentItem.displayDate}</td>`;
+
                     tbodyHtml += `
                         <tr class="hover:bg-slate-50 transition-colors text-sm">
                             <td rowspan="${groupCount}" class="border border-slate-200 py-2.5 px-4 text-slate-800 align-top font-bold bg-white truncate print-truncate" style="max-width: 150px;" title="${currentItem.rawPaymentMethod}">${currentItem.rawPaymentMethod}</td>
-                            <td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${currentItem.displayDate}</td>
+                            ${dateColsHtml}
                             <td class="border border-slate-200 py-2.5 px-4 text-slate-700 whitespace-nowrap align-top font-medium">${currentItem.docNo}</td>
                             <td class="border border-slate-200 py-2.5 px-4 whitespace-nowrap align-top ${currentItem.pClass}">${currentItem.pType}</td>
                             <td class="border border-slate-200 py-2.5 px-4 text-slate-900 font-semibold text-right align-top">${currentItem.amount}</td>
@@ -346,9 +374,13 @@
 
                     for (let j = 1; j < groupCount; j++) {
                         let subItem = compItems[cIdx + j];
+                        let subDateColsHtml = showExtraCol 
+                            ? `<td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${subItem.recDate}</td><td class="border border-slate-200 py-2.5 px-4 text-blue-700 font-medium align-top bg-blue-50/20">${subItem.actionDate}</td>`
+                            : `<td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${subItem.displayDate}</td>`;
+
                         tbodyHtml += `
                             <tr class="hover:bg-slate-50 transition-colors text-sm">
-                                <td class="border border-slate-200 py-2.5 px-4 text-slate-700 align-top">${subItem.displayDate}</td>
+                                ${subDateColsHtml}
                                 <td class="border border-slate-200 py-2.5 px-4 text-slate-700 whitespace-nowrap align-top font-medium">${subItem.docNo}</td>
                                 <td class="border border-slate-200 py-2.5 px-4 whitespace-nowrap align-top ${subItem.pClass}">${subItem.pType}</td>
                                 <td class="border border-slate-200 py-2.5 px-4 text-slate-900 font-semibold text-right align-top">${subItem.amount}</td>
@@ -359,7 +391,7 @@
                 }
             }
 
-            if (tbodyHtml === '') tbodyHtml = `<tr><td colspan="6" class="border border-slate-200 py-8 px-4 text-center text-sm text-slate-500 bg-slate-50/50">ไม่มีรายการข้อมูลสำหรับสถานะที่เลือก</td></tr>`;
+            if (tbodyHtml === '') tbodyHtml = `<tr><td colspan="${colSpanCount}" class="border border-slate-200 py-8 px-4 text-center text-sm text-slate-500 bg-slate-50/50">ไม่มีรายการข้อมูลสำหรับสถานะที่เลือก</td></tr>`;
 
             resultsArea.innerHTML = `
                 <div class="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/30 ring-1 ring-slate-100 relative overflow-hidden">
@@ -434,12 +466,7 @@
                         <table class="w-full text-left border-collapse main-table">
                             <thead>
                                 <tr class="bg-slate-100 text-slate-700 text-sm font-semibold">
-                                    <th class="border border-slate-200 py-3 px-4 w-auto">หมวดประเภทรายการ</th>
-                                    <th id="colDateHeader" class="border border-slate-200 py-3 px-4 w-auto">${colDateHeaderText}</th>
-                                    <th class="border border-slate-200 py-3 px-4 w-auto">เลขที่ใบส่งของ</th>
-                                    <th class="border border-slate-200 py-3 px-4 w-auto">ประเภทการจ่าย</th>
-                                    <th class="border border-slate-200 py-3 px-4 text-right w-auto">จำนวนเงิน</th>
-                                    <th class="border border-slate-200 py-3 px-4 w-auto">สถานะ</th>
+                                    ${thHtml}
                                 </tr>
                             </thead>
                             <tbody id="mainTableBody" class="divide-y divide-slate-100 bg-white">
@@ -468,33 +495,55 @@
 
         function exportToExcel() {
             let exportData = [];
-            exportData.push(["หมวดประเภทรายการ", document.getElementById('colDateHeader').innerText, "เลขที่ใบส่งของ", "ประเภทการจ่าย", "จำนวนเงิน", "สถานะ"]);
+            
+            // ดึงข้อมูลหัวตารางจากหน้าจอแบบไดนามิก เพื่อรองรับคอลัมน์ที่ยืดหยุ่น
+            let headers = [];
+            document.querySelectorAll(".main-table thead th").forEach(th => headers.push(th.innerText.trim()));
+            exportData.push(headers);
             
             let currentCategory = "";
             const rows = document.querySelectorAll("#mainTableBody tr");
+            const colCount = headers.length;
+            
             rows.forEach(row => {
                 let cols = row.querySelectorAll("td");
-                if(cols.length === 6) {
-                    currentCategory = cols[0].innerText.trim(); 
-                    exportData.push([currentCategory, cols[1].innerText.trim(), cols[2].innerText.trim(), cols[3].innerText.trim(), cols[4].innerText.trim(), cols[5].innerText.trim()]);
-                } else if(cols.length === 5) {
-                    exportData.push([currentCategory, cols[0].innerText.trim(), cols[1].innerText.trim(), cols[2].innerText.trim(), cols[3].innerText.trim(), cols[4].innerText.trim()]);
-                } else if(cols.length === 1) { 
-                    exportData.push([cols[0].innerText.trim()]);
+                let rowData = [];
+                
+                if (cols.length === 1 && cols[0].getAttribute('colspan')) {
+                    // แถวชื่อบริษัท
+                    rowData.push(cols[0].innerText.trim());
+                } else if (cols.length === colCount) {
+                    // แถวแรกของกลุ่มข้อมูล (มี rowspan)
+                    currentCategory = cols[0].innerText.trim();
+                    for (let i = 0; i < cols.length; i++) rowData.push(cols[i].innerText.trim());
+                } else if (cols.length === colCount - 1) {
+                    // แถวย่อย
+                    rowData.push(currentCategory);
+                    for (let i = 0; i < cols.length; i++) rowData.push(cols[i].innerText.trim());
                 }
+                
+                if (rowData.length > 0) exportData.push(rowData);
             });
             
             exportData.push([]);
             exportData.push(["สรุปยอดรวม"]);
-            exportData.push(["มีหนี้ในระบบฯ แต่ไม่สามารถวางบิลได้", "", "", "", formatNumber(currentSummary.sumEmpty)]);
-            exportData.push(["มีเอกสาร สามารถวางบิลได้", "", "", "", formatNumber(currentSummary.sumHasDoc)]);
-            exportData.push(["กำลังดำเนินการจ่าย", "", "", "", formatNumber(currentSummary.sumProcessing)]);
-            exportData.push(["ชำระแล้ว", "", "", "", formatNumber(currentSummary.sumPaid)]);
-            exportData.push(["ยอดคงเหลือสุทธิ", "", "", "", formatNumber(currentSummary.netBalance)]);
+            exportData.push(["มีหนี้ในระบบฯ แต่ไม่สามารถวางบิลได้", ...Array(colCount - 2).fill(""), formatNumber(currentSummary.sumEmpty)]);
+            exportData.push(["มีเอกสาร สามารถวางบิลได้", ...Array(colCount - 2).fill(""), formatNumber(currentSummary.sumHasDoc)]);
+            exportData.push(["กำลังดำเนินการจ่าย", ...Array(colCount - 2).fill(""), formatNumber(currentSummary.sumProcessing)]);
+            exportData.push(["ชำระแล้ว", ...Array(colCount - 2).fill(""), formatNumber(currentSummary.sumPaid)]);
+            exportData.push(["ยอดคงเหลือสุทธิ", ...Array(colCount - 2).fill(""), formatNumber(currentSummary.netBalance)]);
 
             let ws = XLSX.utils.aoa_to_sheet(exportData);
             ws['!pageSetup'] = { orientation: 'landscape' };
-            ws['!cols'] = [{ wpx: 120 }, { wpx: 100 }, { wpx: 120 }, { wpx: 100 }, { wpx: 100 }, { wpx: 120 }];
+            
+            let wscols = [{ wpx: 120 }];
+            if (colCount === 7) {
+                wscols.push({ wpx: 100 }, { wpx: 100 }, { wpx: 120 }, { wpx: 100 }, { wpx: 100 }, { wpx: 120 });
+            } else {
+                wscols.push({ wpx: 100 }, { wpx: 120 }, { wpx: 100 }, { wpx: 100 }, { wpx: 120 });
+            }
+            ws['!cols'] = wscols;
+            
             let wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Data");
             XLSX.writeFile(wb, "Data_Outstanding_Creditors.xlsx");
@@ -505,19 +554,40 @@
             let footer = "</div></body></html>";
             
             let html = `<table align="center" border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: 'Sarabun', Tahoma, sans-serif; width: 90%; font-size: 14px;">`;
-            html += `<tr><th style="background-color: #f1f5f9; text-align: left;">หมวดประเภทรายการ</th><th style="background-color: #f1f5f9; text-align: left;">${document.getElementById('colDateHeader').innerText}</th><th style="background-color: #f1f5f9; text-align: left;">เลขที่ใบส่งของ</th><th style="background-color: #f1f5f9; text-align: left;">ประเภทการจ่าย</th><th style="background-color: #f1f5f9; text-align: right;">จำนวนเงิน</th><th style="background-color: #f1f5f9; text-align: left;">สถานะ</th></tr>`;
+            
+            // ดึงข้อมูลหัวตารางจากหน้าจอแบบไดนามิก เพื่อรองรับคอลัมน์ที่ยืดหยุ่น
+            html += `<tr>`;
+            let headers = [];
+            document.querySelectorAll(".main-table thead th").forEach(th => {
+                headers.push(th.innerText.trim());
+                let align = th.classList.contains('text-right') ? 'right' : 'left';
+                html += `<th style="background-color: #f1f5f9; text-align: ${align};">${th.innerText.trim()}</th>`;
+            });
+            html += `</tr>`;
+            
+            const colCount = headers.length;
             
             document.querySelectorAll("#mainTableBody tr").forEach(row => {
                 let cols = row.querySelectorAll("td");
-                if(cols.length === 6) {
+                html += `<tr>`;
+                if(cols.length === colCount) {
                     let rowspan = cols[0].getAttribute('rowspan') ? ` rowspan="${cols[0].getAttribute('rowspan')}"` : '';
-                    html += `<tr><td${rowspan} valign="top">${cols[0].innerText.trim()}</td><td valign="top">${cols[1].innerText.trim()}</td><td valign="top">${cols[2].innerText.trim()}</td><td valign="top">${cols[3].innerText.trim()}</td><td align="right" valign="top">${cols[4].innerText.trim()}</td><td valign="top">${cols[5].innerText.trim()}</td></tr>`;
-                } else if(cols.length === 5) {
-                    html += `<tr><td valign="top">${cols[0].innerText.trim()}</td><td valign="top">${cols[1].innerText.trim()}</td><td valign="top">${cols[2].innerText.trim()}</td><td align="right" valign="top">${cols[3].innerText.trim()}</td><td valign="top">${cols[4].innerText.trim()}</td></tr>`;
+                    html += `<td${rowspan} valign="top">${cols[0].innerText.trim()}</td>`;
+                    for(let i=1; i<cols.length; i++) {
+                        let align = cols[i].classList.contains('text-right') ? 'right' : 'left';
+                        html += `<td align="${align}" valign="top">${cols[i].innerText.trim()}</td>`;
+                    }
+                } else if(cols.length === colCount - 1) {
+                    for(let i=0; i<cols.length; i++) {
+                        let align = cols[i].classList.contains('text-right') ? 'right' : 'left';
+                        html += `<td align="${align}" valign="top">${cols[i].innerText.trim()}</td>`;
+                    }
                 } else if(cols.length === 1) {
-                    html += `<tr><td colspan="6" align="left" style="background-color: #f1f5f9;"><b>${cols[0].innerText.trim()}</b></td></tr>`;
+                    html += `<td colspan="${colCount}" align="left" style="background-color: #f1f5f9;"><b>${cols[0].innerText.trim()}</b></td>`;
                 }
+                html += `</tr>`;
             });
+            
             html += `</table><br><h4 style="text-align: center; font-family: 'Sarabun', Tahoma, sans-serif;">สรุปยอดรวม</h4>`;
             html += `<table align="center" border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: 'Sarabun', Tahoma, sans-serif; width: 45%; font-size: 14px; page-break-inside: avoid;">`;
             html += `<tr><th colspan="2" style="background-color: #f1f5f9; text-align: left;">สรุปยอดรวม</th></tr>`;
